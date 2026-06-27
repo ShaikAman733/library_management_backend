@@ -11,10 +11,15 @@ __pycache__/
 *.pyd
 .Python
 venv/
+backend/venv/
 env/
 *.egg-info/
 dist/
 build/
+
+# Node
+frontend/node_modules/
+frontend/build/
 
 # Static files (generated at build time)
 staticfiles/

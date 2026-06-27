@@ -3,6 +3,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from .apps import ensure_default_demo_accounts
 from .models import Book, Member
 
 
@@ -12,13 +13,14 @@ class LibraryAPITests(APITestCase):
             username='libuser', password='Pass1234!', is_staff=True
         )
         self.regular_user = User.objects.create_user(
-            username='memberuser', password='Pass1234!', is_staff=False
+            username='memberuser', email='memberuser@example.com', password='Pass1234!', is_staff=False
         )
         self.book = Book.objects.create(
             isbn='111-1', title='Clean Code', author='Robert Martin',
             total_copies=2, available_copies=2,
         )
         self.member = Member.objects.create(name='Aman', email='aman@example.com')
+        self.member_for_user = Member.objects.create(name='memberuser', email='memberuser@example.com')
 
     def _login(self, username, password):
         resp = self.client.post(reverse('login'), {'username': username, 'password': password})
@@ -33,6 +35,18 @@ class LibraryAPITests(APITestCase):
         resp = self.client.post(reverse('login'), {'username': 'newuser', 'password': 'StrongPass123!'})
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertIn('access', resp.data)
+
+    def test_demo_accounts_are_created_when_missing(self):
+        User.objects.filter(username__in=['libuser', 'memberuser']).delete()
+        Member.objects.filter(email='memberuser@example.com').delete()
+
+        ensure_default_demo_accounts()
+
+        lib_user = User.objects.get(username='libuser')
+        member_user = User.objects.get(username='memberuser')
+        self.assertTrue(lib_user.is_staff)
+        self.assertFalse(member_user.is_staff)
+        self.assertTrue(Member.objects.filter(email='memberuser@example.com').exists())
 
     def test_issue_and_return_book(self):
         self._login('libuser', 'Pass1234!')
@@ -64,10 +78,18 @@ class LibraryAPITests(APITestCase):
         })
         self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_member_can_request_issue_without_member_id(self):
+        self._login('memberuser', 'Pass1234!')
+
+        resp = self.client.post(reverse('issue-request'), {'book_id': self.book.id, 'due_days': 10})
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+
     def test_dashboard_counts(self):
         self._login('libuser', 'Pass1234!')
         resp = self.client.get(reverse('dashboard'))
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertEqual(resp.data['total_books'], 2)
         self.assertEqual(resp.data['available_books'], 2)
-        self.assertEqual(resp.data['total_members'], 1)
+        self.assertEqual(resp.data['total_members'], 2)
+        self.assertEqual(resp.data['active_issues'], 0)
+        self.assertEqual(resp.data['overdue_books'], 0)

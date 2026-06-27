@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
+from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import Book, BookIssue, Category, Member
 from .permissions import IsLibrarian, IsLibrarianOrReadOnly
@@ -73,15 +74,9 @@ class BookViewSet(viewsets.ModelViewSet):
     queryset = Book.objects.select_related('category').all()
     serializer_class = BookSerializer
     permission_classes = [IsLibrarianOrReadOnly]
-    filter_backends = [filters.SearchFilter]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['category']
     search_fields = ['title', 'author', 'isbn', 'category__name']
-
-    def get_queryset(self):
-        qs = super().get_queryset()
-        category_id = self.request.query_params.get('category')
-        if category_id:
-            qs = qs.filter(category_id=category_id)
-        return qs
 
 
 # ------------------------------------------------------------------
@@ -92,7 +87,8 @@ class MemberViewSet(viewsets.ModelViewSet):
     queryset = Member.objects.all()
     serializer_class = MemberSerializer
     permission_classes = [IsLibrarianOrReadOnly]
-    filter_backends = [filters.SearchFilter]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['status']
     search_fields = ['name', 'email', 'phone_number']
 
 
@@ -104,16 +100,51 @@ class BookIssueViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = BookIssue.objects.select_related('book', 'member').all()
     serializer_class = BookIssueSerializer
     permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['member', 'book']
 
     def get_queryset(self):
-        qs = super().get_queryset()
-        member_id = self.request.query_params.get('member')
-        book_id = self.request.query_params.get('book')
-        if member_id:
-            qs = qs.filter(member_id=member_id)
-        if book_id:
-            qs = qs.filter(book_id=book_id)
-        return qs
+        return super().get_queryset()
+
+
+class IssueBookRequestView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request):
+        if request.user.is_staff:
+            return Response({'detail': 'Librarians should use the staff issue endpoint.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = IssueBookSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        try:
+            book = Book.objects.select_for_update().get(pk=data['book_id'])
+        except Book.DoesNotExist:
+            return Response({'detail': 'Book not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        member = Member.objects.filter(email=request.user.email).first()
+        if not member:
+            member = Member.objects.filter(name=request.user.username).first()
+        if not member:
+            return Response({'detail': 'No member record is linked to your account. Please ask a librarian to add you.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if member.status != 'Active':
+            return Response({'detail': 'Member is not active.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if book.available_copies <= 0:
+            return Response({'detail': 'No available copies for this book.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        book.available_copies -= 1
+        book.save(update_fields=['available_copies'])
+
+        issue = BookIssue.objects.create(
+            book=book,
+            member=member,
+            due_date=timezone.now().date() + timedelta(days=data['due_days']),
+        )
+        return Response(BookIssueSerializer(issue).data, status=status.HTTP_201_CREATED)
 
 
 class IssueBookView(APIView):
@@ -195,10 +226,15 @@ class DashboardView(APIView):
         available_books = totals['available_books'] or 0
         issued_books = total_books - available_books
         total_members = Member.objects.count()
+        today = timezone.now().date()
+        active_issues = BookIssue.objects.filter(return_date__isnull=True).count()
+        overdue_books = BookIssue.objects.filter(return_date__isnull=True, due_date__lt=today).count()
 
         return Response({
             'total_books': total_books,
             'available_books': available_books,
             'issued_books': issued_books,
             'total_members': total_members,
+            'active_issues': active_issues,
+            'overdue_books': overdue_books,
         })

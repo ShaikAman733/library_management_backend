@@ -7,6 +7,7 @@ from .views import (
     BookViewSet,
     CategoryViewSet,
     DashboardView,
+    IssueBookRequestView,
     IssueBookView,
     LogoutView,
     MeView,
@@ -22,7 +23,7 @@ router.register('members', MemberViewSet, basename='member')
 router.register('issues', BookIssueViewSet, basename='issue')
 
 urlpatterns = [
-    # Auth
+    # Authentication
     path('auth/register/', RegisterView.as_view(), name='register'),
     path('auth/login/', TokenObtainPairView.as_view(), name='login'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
@@ -30,12 +31,13 @@ urlpatterns = [
     path('auth/me/', MeView.as_view(), name='me'),
 
     # Book issue / return
+    path('issues/request/', IssueBookRequestView.as_view(), name='issue-request'),
     path('issues/issue/', IssueBookView.as_view(), name='issue-book'),
     path('issues/return/', ReturnBookView.as_view(), name='return-book'),
 
     # Dashboard
     path('dashboard/', DashboardView.as_view(), name='dashboard'),
 
-    # CRUD routers (categories, books, members, issues)
+    # CRUD routers
     path('', include(router.urls)),
 ]

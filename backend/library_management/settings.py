@@ -7,6 +7,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import environ
+from corsheaders.defaults import default_headers
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -33,24 +34,23 @@ INSTALLED_APPS = [
     # third-party
     'rest_framework',
     'rest_framework_simplejwt.token_blacklist',
-    'corsheaders',
     'django_filters',
+    'corsheaders',
 
     # local
     'library',
 ]
 
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
     'corsheaders.middleware.CorsMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'django.middleware.security.SecurityMiddleware',
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
-
 ROOT_URLCONF = 'library_management.urls'
 
 TEMPLATES = [
@@ -138,5 +138,13 @@ SIMPLE_JWT = {
 # ------------------------------------------------------------------
 CORS_ALLOWED_ORIGINS = env.list(
     'CORS_ALLOWED_ORIGINS',
-    default=['http://localhost:5173', 'http://localhost:3000'],
+    default=[
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'http://localhost:5173',
+    ],
 )
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'authorization',
+]
+CORS_ALLOW_CREDENTIALS = True
