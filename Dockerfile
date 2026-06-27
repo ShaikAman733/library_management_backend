@@ -10,10 +10,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Collect static files at build time
 RUN python manage.py collectstatic --noinput || true
 
 EXPOSE 8000
 
-# Railway injects $PORT dynamically — railway.toml startCommand handles migrate + gunicorn
-CMD ["gunicorn", "library_management.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3"]
+CMD gunicorn library_management.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 2 --timeout 120
