@@ -1,0 +1,25 @@
+# Environment variables — never commit this
+.env
+
+# SQLite (Railway uses MySQL, not SQLite)
+db.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# Static files (generated at build time)
+staticfiles/
+
+# IDE
+.vscode/
+.idea/
+*.swp
